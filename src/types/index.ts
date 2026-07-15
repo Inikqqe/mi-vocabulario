@@ -18,7 +18,7 @@ export const PART_OF_SPEECH_COLORS: Record<PartOfSpeech, { bg: string; text: str
   other: { bg: '#F8FAFC', text: '#475569', darkBg: '#334155', darkText: '#94A3B8' },
 };
 
-export type TrainingMode = 'flashcard' | 'quiz' | 'sprint';
+export type TrainingMode = 'learn' | 'flashcard' | 'quiz' | 'sprint';
 export type TrainingResult = 'know' | 'doubt' | 'dont_know' | 'correct' | 'wrong';
 export type TrainingDirection = 'es-ru' | 'ru-es';
 
@@ -67,7 +67,7 @@ export interface TrainingSession {
   id: string;
   mode: TrainingMode;
   direction: TrainingDirection;
-  source: 'all' | 'favorites' | 'weak' | 'pos' | 'tag';
+  source: 'all' | 'new' | 'favorites' | 'weak' | 'pos' | 'tag';
   sourceFilter?: string;
   totalWords: number;
   correctCount: number;

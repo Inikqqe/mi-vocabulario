@@ -2,6 +2,7 @@
 
 import { useAppStore } from "@/store/app-store";
 import { TrainingModeSelect } from "./training-mode-select";
+import { LearnMode } from "./learn-mode";
 import { FlashcardMode } from "./flashcard-mode";
 import { QuizMode } from "./quiz-mode";
 import { SprintMode } from "./sprint-mode";
@@ -18,6 +19,8 @@ export function TrainingTab() {
   // Show active training
   if (trainingMode && trainingWords.length > 0) {
     switch (trainingMode) {
+      case 'learn':
+        return <LearnMode />;
       case 'flashcard':
         return <FlashcardMode />;
       case 'quiz':

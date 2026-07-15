@@ -18,14 +18,24 @@ export function setApiKey(key: string) {
 export interface AiWordSuggestion {
   ruTranslation: string;
   partOfSpeech: PartOfSpeech;
+  isSpelledCorrectly: boolean;
+  correctedEs: string;
 }
 
 const SUGGESTION_SCHEMA = {
   type: 'object',
   properties: {
+    isSpelledCorrectly: {
+      type: 'boolean',
+      description: 'true, если испанское слово написано без ошибок (правильная орфография и акценты).',
+    },
+    correctedEs: {
+      type: 'string',
+      description: 'Правильное написание испанского слова. Если ошибок нет — исходное слово без изменений.',
+    },
     ruTranslation: {
       type: 'string',
-      description: 'Перевод испанского слова на русский язык. Кратко: 1-3 варианта через запятую.',
+      description: 'Перевод (исправленного) испанского слова на русский язык. Кратко: 1-3 варианта через запятую.',
     },
     partOfSpeech: {
       type: 'string',
@@ -33,7 +43,7 @@ const SUGGESTION_SCHEMA = {
       description: 'Часть речи: verb=глагол, noun=существительное, adj=прилагательное, adv=наречие, phrase=фраза/выражение, other=другое (местоимения, предлоги и т.д.)',
     },
   },
-  required: ['ruTranslation', 'partOfSpeech'],
+  required: ['isSpelledCorrectly', 'correctedEs', 'ruTranslation', 'partOfSpeech'],
   additionalProperties: false,
 } as const;
 
@@ -51,7 +61,9 @@ export async function suggestTranslation(esWord: string): Promise<AiWordSuggesti
     max_tokens: 1024,
     system:
       'Ты — словарь испанского языка для русскоязычных учеников. ' +
-      'Тебе дают испанское слово или фразу, ты возвращаешь перевод на русский и часть речи.',
+      'Тебе дают испанское слово или фразу. Сначала проверь орфографию: если слово написано с ошибкой ' +
+      '(опечатка, пропущенный акцент, неверная буква), укажи isSpelledCorrectly=false и правильное написание в correctedEs. ' +
+      'Затем верни перевод исправленного слова на русский и часть речи.',
     output_config: {
       format: {
         type: 'json_schema',

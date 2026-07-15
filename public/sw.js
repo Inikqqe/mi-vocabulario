@@ -1,4 +1,4 @@
-const CACHE_NAME = 'mi-vocabulario-v1';
+const CACHE_NAME = 'mi-vocabulario-v2';
 const STATIC_ASSETS = [
   './',
   './index.html',
@@ -36,6 +36,29 @@ self.addEventListener('fetch', (event) => {
 
   // Skip chrome-extension and other non-http requests
   if (!event.request.url.startsWith('http')) return;
+
+  // Navigation requests (HTML): network first, so app updates arrive
+  // on the next visit; fall back to cache when offline
+  if (event.request.mode === 'navigate') {
+    event.respondWith(
+      fetch(event.request)
+        .then((networkResponse) => {
+          if (networkResponse && networkResponse.status === 200) {
+            const responseClone = networkResponse.clone();
+            caches.open(CACHE_NAME).then((cache) => {
+              cache.put(event.request, responseClone);
+            });
+          }
+          return networkResponse;
+        })
+        .catch(() =>
+          caches.match(event.request).then(
+            (cached) => cached || caches.match('./index.html')
+          )
+        )
+    );
+    return;
+  }
 
   event.respondWith(
     caches.match(event.request).then((cachedResponse) => {

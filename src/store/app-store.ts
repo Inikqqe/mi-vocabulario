@@ -25,8 +25,8 @@ interface AppState {
   setTrainingMode: (m: TrainingMode | null) => void;
   trainingDirection: TrainingDirection;
   setTrainingDirection: (d: TrainingDirection) => void;
-  trainingSource: 'all' | 'favorites' | 'weak' | 'pos';
-  setTrainingSource: (s: 'all' | 'favorites' | 'weak' | 'pos') => void;
+  trainingSource: 'all' | 'new' | 'favorites' | 'weak' | 'pos';
+  setTrainingSource: (s: 'all' | 'new' | 'favorites' | 'weak' | 'pos') => void;
   trainingSourceFilter: string;
   setTrainingSourceFilter: (f: string) => void;
   trainingSessionId: string | null;

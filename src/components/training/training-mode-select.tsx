@@ -7,11 +7,13 @@ import { useAppStore } from "@/store/app-store";
 import { useLiveQuery } from "dexie-react-hooks";
 import { db } from "@/lib/db";
 import type { TrainingMode, TrainingDirection, Word } from "@/types";
-import { Brain, Zap, RotateCcw, ArrowRight, ArrowLeft, Star, AlertTriangle, BookOpen } from "lucide-react";
+import { Brain, Zap, RotateCcw, ArrowRight, Star, AlertTriangle, BookOpen, GraduationCap, Sparkles } from "lucide-react";
+
 import { v4 as uuidv4 } from "uuid";
 import { useState } from "react";
 
 const MODES: { value: TrainingMode; label: string; description: string; icon: React.ReactNode; color: string }[] = [
+  { value: "learn", label: "Выучить", description: "Изучение новых слов: сначала запоминаете слово с переводом, затем проверяете себя тестом.", icon: <GraduationCap className="w-6 h-6" />, color: "bg-success" },
   { value: "flashcard", label: "Карточки", description: "Интервальное повторение по алгоритму Leitner. Переворачивайте карточки и оценивайте знание.", icon: <RotateCcw className="w-6 h-6" />, color: "bg-primary" },
   { value: "quiz", label: "Викторина", description: "Выберите правильный перевод из четырёх вариантов. Тренирует точность распознавания.", icon: <Brain className="w-6 h-6" />, color: "bg-chart-2" },
   { value: "sprint", label: "Спринт", description: "60 секунд на максимум правильных ответов. Быстро выбирайте: верный или неверный перевод.", icon: <Zap className="w-6 h-6" />, color: "bg-chart-3" },
@@ -39,9 +41,12 @@ export function TrainingModeSelect() {
   const totalWords = allWords?.length || 0;
   const favoriteWords = allWords?.filter(w => w.isFavorite).length || 0;
   const weakWords = allWords?.filter(w => w.leitnerBox <= 2).length || 0;
+  // Новые = слова, которые ещё ни разу не тренировались
+  const newWords = allWords?.filter(w => w.correctCount + w.wrongCount === 0).length || 0;
 
   const getSourceCount = () => {
     switch (trainingSource) {
+      case 'new': return newWords;
       case 'favorites': return favoriteWords;
       case 'weak': return weakWords;
       default: return totalWords;
@@ -53,6 +58,9 @@ export function TrainingModeSelect() {
     let words = [...allWords];
 
     switch (trainingSource) {
+      case 'new':
+        words = words.filter(w => w.correctCount + w.wrongCount === 0);
+        break;
       case 'favorites':
         words = words.filter(w => w.isFavorite);
         break;
@@ -115,7 +123,13 @@ export function TrainingModeSelect() {
                   ? "ring-2 ring-primary bg-accent/50"
                   : "hover:bg-accent/30"
               }`}
-              onClick={() => setTrainingMode(mode.value)}
+              onClick={() => {
+                setTrainingMode(mode.value);
+                // Для режима «Выучить» по умолчанию берём новые слова
+                if (mode.value === 'learn' && trainingSource === 'all' && newWords > 0) {
+                  setTrainingSource('new');
+                }
+              }}
             >
               <div className="flex items-start gap-3">
                 <div className={`w-10 h-10 rounded-lg ${mode.color} text-white flex items-center justify-center shrink-0`}>
@@ -154,10 +168,11 @@ export function TrainingModeSelect() {
         {/* Source */}
         <div className="space-y-2">
           <h3 className="text-sm font-medium text-muted-foreground">Источник слов</h3>
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-2 gap-2">
             {[
               { value: 'all' as const, label: 'Все', count: totalWords, icon: <BookOpen className="w-4 h-4" /> },
-              { value: 'favorites' as const, label: '★ Избр.', count: favoriteWords, icon: <Star className="w-4 h-4" /> },
+              { value: 'new' as const, label: 'Новые', count: newWords, icon: <Sparkles className="w-4 h-4" /> },
+              { value: 'favorites' as const, label: '★ Избранные', count: favoriteWords, icon: <Star className="w-4 h-4" /> },
               { value: 'weak' as const, label: 'Слабые', count: weakWords, icon: <AlertTriangle className="w-4 h-4" /> },
             ].map((src) => (
               <Card
