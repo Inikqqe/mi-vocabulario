@@ -1,42 +1,40 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Switch } from "@/components/ui/switch";
-import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
-import { useAppStore } from "@/store/app-store";
 import { useLiveQuery } from "dexie-react-hooks";
 import { db } from "@/lib/db";
-import type { PartOfSpeech, AppSettings } from "@/types";
-import { PART_OF_SPEECH_LABELS, PART_OF_SPEECH_COLORS, DEFAULT_SETTINGS } from "@/types";
+import type { PartOfSpeech } from "@/types";
+import { PART_OF_SPEECH_LABELS, PART_OF_SPEECH_COLORS } from "@/types";
+import { getApiKey, setApiKey } from "@/lib/ai";
+import { loadBaseDictionary } from "@/lib/seed";
 import { useTheme } from "next-themes";
 import {
-  BookOpen, Star, Target, Flame, TrendingUp,
+  BookOpen, Target, Flame, TrendingUp,
   Download, Upload, Sun, Moon, Monitor,
-  Type, Sparkles, Tag, Trash2, ChevronRight,
-  BarChart3, Settings, FolderOpen
+  Sparkles, BarChart3, Settings, FolderOpen, BookPlus,
 } from "lucide-react";
 import { toast } from "sonner";
 import Papa from "papaparse";
 
 export function ProfileTab() {
-  const [activeSection, setActiveSection] = useState<'stats' | 'settings' | 'export' | 'tags'>('stats');
+  const [activeSection, setActiveSection] = useState<'stats' | 'settings' | 'export'>('stats');
   const { resolvedTheme, setTheme } = useTheme();
-  const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
-  const [fontSize, setFontSize] = useState<'S' | 'M' | 'L'>('M');
+  const [apiKeyInput, setApiKeyInput] = useState("");
+
+  useEffect(() => {
+    setApiKeyInput(getApiKey());
+  }, []);
 
   const words = useLiveQuery(() => db.words.toArray()) || [];
-  const tags = useLiveQuery(() => db.tags.toArray()) || [];
   const trainingRecords = useLiveQuery(() => db.trainingRecords.toArray()) || [];
 
   // Compute stats
   const totalWords = words.length;
-  const favoriteWords = words.filter(w => w.isFavorite).length;
   const learnedWords = words.filter(w => w.leitnerBox >= 4).length;
-  const weakWords = words.filter(w => w.leitnerBox <= 2).length;
   const totalCorrect = trainingRecords.filter(r => r.result === 'know' || r.result === 'correct').length;
   const totalWrong = trainingRecords.filter(r => r.result === 'dont_know' || r.result === 'wrong').length;
   const accuracy = totalCorrect + totalWrong > 0
@@ -73,35 +71,33 @@ export function ProfileTab() {
   const difficultWords = [...words]
     .sort((a, b) => b.wrongCount - a.wrongCount)
     .filter(w => w.wrongCount > 0)
-    .slice(0, 10);
+    .slice(0, 5);
+
+  const handleSaveApiKey = () => {
+    setApiKey(apiKeyInput);
+    toast.success(apiKeyInput.trim() ? "API-ключ сохранён" : "API-ключ удалён");
+  };
+
+  const handleLoadBaseDictionary = async () => {
+    const added = await loadBaseDictionary();
+    if (added > 0) {
+      toast.success(`Добавлено ${added} слов из базового словаря`);
+    } else {
+      toast.info("Все слова базового словаря уже добавлены");
+    }
+  };
 
   // Export to CSV
   const handleExportCSV = useCallback(async () => {
     const allWords = await db.words.toArray();
-    const allWordTags = await db.wordTags.toArray();
-    const allTags = await db.tags.toArray();
 
-    const csvData = allWords.map(w => {
-      const wTags = allWordTags
-        .filter(wt => wt.wordId === w.id)
-        .map(wt => allTags.find(t => t.id === wt.tagId)?.name || '')
-        .filter(Boolean);
-      return {
-        'Испанское слово': w.esWord,
-        'Перевод': w.ruTranslation,
-        'Транскрипция': w.transcription,
-        'Часть речи': w.partOfSpeech,
-        'Пример (исп.)': w.exampleEs,
-        'Перевод примера': w.exampleRu,
-        'Заметка': w.note,
-        'Избранное': w.isFavorite ? 'да' : 'нет',
-        'Ящик Leitner': w.leitnerBox,
-        'Правильных': w.correctCount,
-        'Ошибок': w.wrongCount,
-        'Теги': wTags.join('; '),
-        'Дата добавления': new Date(w.createdAt).toLocaleDateString('ru-RU'),
-      };
-    });
+    const csvData = allWords.map(w => ({
+      'Испанское слово': w.esWord,
+      'Перевод': w.ruTranslation,
+      'Часть речи': w.partOfSpeech,
+      'Избранное': w.isFavorite ? 'да' : 'нет',
+      'Ящик Leitner': w.leitnerBox,
+    }));
 
     const csv = Papa.unparse(csvData);
     const BOM = '\uFEFF';
@@ -119,11 +115,9 @@ export function ProfileTab() {
   const handleExportJSON = useCallback(async () => {
     const data = {
       words: await db.words.toArray(),
-      tags: await db.tags.toArray(),
-      wordTags: await db.wordTags.toArray(),
       trainingRecords: await db.trainingRecords.toArray(),
       exportedAt: new Date().toISOString(),
-      version: '1.0',
+      version: '1.1',
     };
 
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
@@ -150,12 +144,6 @@ export function ProfileTab() {
         if (data.words) {
           await db.words.bulkPut(data.words);
         }
-        if (data.tags) {
-          await db.tags.bulkPut(data.tags);
-        }
-        if (data.wordTags) {
-          await db.wordTags.bulkPut(data.wordTags);
-        }
         toast.success(`Импортировано ${data.words?.length || 0} слов`);
       } catch {
         toast.error("Ошибка при импорте файла");
@@ -178,20 +166,20 @@ export function ProfileTab() {
         const { v4: uuidv4 } = await import('uuid');
         const now = new Date();
 
-        const wordsToAdd = result.data.map((row: Record<string, string>) => ({
+        const wordsToAdd = (result.data as Record<string, string>[]).map((row) => ({
           id: uuidv4(),
           esWord: row['Испанское слово'] || row['esWord'] || '',
           ruTranslation: row['Перевод'] || row['ruTranslation'] || '',
-          transcription: row['Транскрипция'] || row['transcription'] || '',
+          transcription: '',
           partOfSpeech: (row['Часть речи'] || row['partOfSpeech'] || 'noun') as PartOfSpeech,
-          exampleEs: row['Пример (исп.)'] || row['exampleEs'] || '',
-          exampleRu: row['Перевод примера'] || row['exampleRu'] || '',
-          note: row['Заметка'] || row['note'] || '',
+          exampleEs: '',
+          exampleRu: '',
+          note: '',
           isFavorite: (row['Избранное'] || row['isFavorite']) === 'да',
           leitnerBox: parseInt(row['Ящик Leitner'] || row['leitnerBox'] || '1'),
           nextReviewAt: now,
-          correctCount: parseInt(row['Правильных'] || row['correctCount'] || '0'),
-          wrongCount: parseInt(row['Ошибок'] || row['wrongCount'] || '0'),
+          correctCount: 0,
+          wrongCount: 0,
           createdAt: now,
           updatedAt: now,
         })).filter(w => w.esWord && w.ruTranslation);
@@ -205,13 +193,6 @@ export function ProfileTab() {
     input.click();
   }, []);
 
-  // Delete tag
-  const handleDeleteTag = async (tagId: string) => {
-    await db.wordTags.where('tagId').equals(tagId).delete();
-    await db.tags.delete(tagId);
-    toast.success("Тег удалён");
-  };
-
   return (
     <div className="flex flex-col h-full">
       <div className="px-1 pb-2">
@@ -224,7 +205,6 @@ export function ProfileTab() {
           { key: 'stats' as const, label: 'Статистика', icon: <BarChart3 className="w-4 h-4" /> },
           { key: 'settings' as const, label: 'Настройки', icon: <Settings className="w-4 h-4" /> },
           { key: 'export' as const, label: 'Данные', icon: <FolderOpen className="w-4 h-4" /> },
-          { key: 'tags' as const, label: 'Теги', icon: <Tag className="w-4 h-4" /> },
         ].map((tab) => (
           <Badge
             key={tab.key}
@@ -308,7 +288,7 @@ export function ProfileTab() {
               <Card className="p-4">
                 <h3 className="text-sm font-medium text-muted-foreground mb-3">Топ сложных слов</h3>
                 <div className="space-y-2">
-                  {difficultWords.slice(0, 5).map((word) => (
+                  {difficultWords.map((word) => (
                     <div key={word.id} className="flex items-center justify-between">
                       <div>
                         <span className="text-sm font-medium">{word.esWord}</span>
@@ -351,37 +331,29 @@ export function ProfileTab() {
               </div>
             </Card>
 
-            {/* Font size */}
+            {/* AI API key */}
             <Card className="p-4">
-              <h3 className="text-sm font-medium text-muted-foreground mb-3">Размер шрифта</h3>
-              <div className="flex gap-2">
-                {(['S', 'M', 'L'] as const).map((size) => (
-                  <Badge
-                    key={size}
-                    variant={fontSize === size ? "default" : "outline"}
-                    className={`cursor-pointer py-2 px-5 ${
-                      fontSize === size ? "bg-primary text-primary-foreground" : ""
-                    }`}
-                    onClick={() => setFontSize(size)}
-                  >
-                    <Type className="w-3 h-3 mr-1" style={{ fontSize: size === 'S' ? '10px' : size === 'L' ? '16px' : '13px' }} />
-                    {size}
-                  </Badge>
-                ))}
+              <div className="flex items-center gap-2 mb-1">
+                <Sparkles className="w-4 h-4 text-primary" />
+                <h3 className="text-sm font-medium">ИИ-помощник (Claude)</h3>
               </div>
-            </Card>
-
-            {/* Animations */}
-            <Card className="p-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Sparkles className="w-4 h-4 text-muted-foreground" />
-                  <div>
-                    <p className="text-sm font-medium">Анимации</p>
-                    <p className="text-xs text-muted-foreground">Включить анимации карточек</p>
-                  </div>
-                </div>
-                <Switch defaultChecked />
+              <p className="text-xs text-muted-foreground mb-3">
+                Вставьте API-ключ Anthropic, чтобы кнопка ✨ в форме добавления
+                автоматически заполняла перевод и часть речи. Ключ хранится только
+                на этом устройстве. Получить ключ: platform.claude.com
+              </p>
+              <div className="flex gap-2">
+                <Input
+                  type="password"
+                  placeholder="sk-ant-..."
+                  value={apiKeyInput}
+                  onChange={(e) => setApiKeyInput(e.target.value)}
+                  className="flex-1"
+                  autoComplete="off"
+                />
+                <Button variant="outline" onClick={handleSaveApiKey}>
+                  Сохранить
+                </Button>
               </div>
             </Card>
           </>
@@ -390,6 +362,17 @@ export function ProfileTab() {
         {/* EXPORT/IMPORT */}
         {activeSection === 'export' && (
           <>
+            <Card className="p-4">
+              <h3 className="text-sm font-medium text-muted-foreground mb-3">Базовый словарь</h3>
+              <Button variant="outline" className="w-full justify-start" onClick={handleLoadBaseDictionary}>
+                <BookPlus className="w-4 h-4 mr-2" />
+                Загрузить базовый словарь (200 слов)
+              </Button>
+              <p className="text-xs text-muted-foreground mt-2">
+                Добавит 200 основных испанских слов. Уже добавленные слова пропускаются.
+              </p>
+            </Card>
+
             <Card className="p-4">
               <h3 className="text-sm font-medium text-muted-foreground mb-3">Экспорт</h3>
               <div className="space-y-2">
@@ -417,46 +400,6 @@ export function ProfileTab() {
                 </Button>
               </div>
             </Card>
-          </>
-        )}
-
-        {/* TAGS */}
-        {activeSection === 'tags' && (
-          <>
-            {tags.length === 0 ? (
-              <Card className="p-6 text-center">
-                <Tag className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
-                <p className="text-sm text-muted-foreground">Теги появятся при добавлении слов</p>
-              </Card>
-            ) : (
-              <div className="space-y-2">
-                {tags.map((tag) => {
-                  const wordCount = words.filter(w =>
-                    // We can't easily count here without wordTags query, so just show tag
-                    true
-                  ).length;
-                  return (
-                    <Card key={tag.id} className="p-3 flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <div
-                          className="w-3 h-3 rounded-full"
-                          style={{ backgroundColor: tag.colorHex }}
-                        />
-                        <span className="text-sm font-medium">{tag.name}</span>
-                      </div>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 text-destructive"
-                        onClick={() => handleDeleteTag(tag.id)}
-                      >
-                        <Trash2 className="w-3 h-3" />
-                      </Button>
-                    </Card>
-                  );
-                })}
-              </div>
-            )}
           </>
         )}
       </div>

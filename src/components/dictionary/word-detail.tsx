@@ -17,19 +17,6 @@ export function WordDetail() {
     [selectedWordId]
   );
 
-  const wordTags = useLiveQuery(
-    () => selectedWordId
-      ? db.wordTags.where('wordId').equals(selectedWordId).toArray()
-      : [],
-    [selectedWordId]
-  );
-
-  const tags = useLiveQuery(async () => {
-    if (!wordTags?.length) return [];
-    const tagIds = wordTags.map(wt => wt.tagId);
-    return db.tags.where('id').anyOf(tagIds).toArray();
-  }, [wordTags]);
-
   if (!word) return null;
 
   const handleToggleFavorite = async () => {
@@ -82,55 +69,10 @@ export function WordDetail() {
 
           <div className="mb-1">
             <h1 className="text-3xl font-semibold text-foreground">{word.esWord}</h1>
-            {word.transcription && (
-              <p className="text-base text-muted-foreground mt-0.5">[{word.transcription}]</p>
-            )}
           </div>
 
           <p className="text-xl text-foreground/90 mt-2">{word.ruTranslation}</p>
         </Card>
-
-        {/* Example */}
-        {(word.exampleEs || word.exampleRu) && (
-          <Card className="p-4">
-            <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">Пример</h3>
-            {word.exampleEs && (
-              <p className="text-sm text-foreground italic mb-1">{word.exampleEs}</p>
-            )}
-            {word.exampleRu && (
-              <p className="text-sm text-muted-foreground">{word.exampleRu}</p>
-            )}
-          </Card>
-        )}
-
-        {/* Note */}
-        {word.note && (
-          <Card className="p-4">
-            <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">Заметка</h3>
-            <p className="text-sm text-foreground">{word.note}</p>
-          </Card>
-        )}
-
-        {/* Tags */}
-        {tags && tags.length > 0 && (
-          <Card className="p-4">
-            <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">Теги</h3>
-            <div className="flex flex-wrap gap-1.5">
-              {tags.map((tag) => (
-                <span
-                  key={tag.id}
-                  className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium"
-                  style={{
-                    backgroundColor: tag.colorHex + '20',
-                    color: tag.colorHex,
-                  }}
-                >
-                  {tag.name}
-                </span>
-              ))}
-            </div>
-          </Card>
-        )}
 
         {/* Stats */}
         <Card className="p-4">

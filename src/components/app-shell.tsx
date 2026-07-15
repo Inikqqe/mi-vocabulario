@@ -7,8 +7,8 @@ import { TrainingTab } from "@/components/training/training-tab";
 import { ProfileTab } from "@/components/profile/profile-tab";
 import { DeleteConfirmDialog } from "@/components/shared/delete-confirm";
 import { PwaRegister } from "@/components/shared/pwa-register";
-import { useLiveQuery } from "dexie-react-hooks";
-import { db } from "@/lib/db";
+import { autoSeedIfEmpty } from "@/lib/seed";
+import { useEffect } from "react";
 import { BookOpen, PlusCircle, Brain, BarChart3 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import type { AppTab } from "@/store/app-store";
@@ -22,7 +22,11 @@ const TABS: { key: AppTab; label: string; icon: React.ReactNode }[] = [
 
 export function AppShell() {
   const { activeTab, setActiveTab } = useAppStore();
-  const wordCount = useLiveQuery(() => db.words.count()) || 0;
+
+  // Первый запуск: загружаем базовый словарь (200 слов)
+  useEffect(() => {
+    autoSeedIfEmpty();
+  }, []);
 
   const renderContent = () => {
     switch (activeTab) {

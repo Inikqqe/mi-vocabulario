@@ -37,28 +37,13 @@ export function WordCard({ word, onClick }: WordCardProps) {
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-1">
               <PosBadge pos={word.partOfSpeech} />
-              <span className="text-[11px] text-muted-foreground">
-                Ящик {word.leitnerBox}
-              </span>
             </div>
-            <div className="flex items-center gap-2">
-              <h3 className="text-lg font-semibold text-foreground truncate">
-                {word.esWord}
-              </h3>
-              {word.transcription && (
-                <span className="text-xs text-muted-foreground truncate">
-                  [{word.transcription}]
-                </span>
-              )}
-            </div>
+            <h3 className="text-lg font-semibold text-foreground truncate">
+              {word.esWord}
+            </h3>
             <p className="text-sm text-muted-foreground truncate mt-0.5">
               {word.ruTranslation}
             </p>
-            {word.exampleEs && (
-              <p className="text-xs text-muted-foreground/70 truncate mt-1 italic">
-                {word.exampleEs}
-              </p>
-            )}
           </div>
           <button
             className="shrink-0 p-1"
