@@ -11,8 +11,9 @@ import { Badge } from "@/components/ui/badge";
 import { PART_OF_SPEECH_LABELS, type PartOfSpeech } from "@/types";
 import { suggestTranslation, getApiKey } from "@/lib/ai";
 import { hasCyrillic, hasLatin, findSuggestion } from "@/lib/spellcheck";
-import { SEED_WORDS } from "@/lib/seed-words";
+import { WORD_PACKS } from "@/lib/packs";
 import { useActiveDictionary } from "@/hooks/use-active-dictionary";
+import { getLanguage } from "@/lib/languages";
 import { toast } from "sonner";
 import { Save, Sparkles, Loader2, AlertTriangle, Lightbulb } from "lucide-react";
 
@@ -20,7 +21,8 @@ const POS_OPTIONS: PartOfSpeech[] = ['verb', 'noun', 'adj', 'adv', 'phrase', 'ot
 
 export function AddWordForm() {
   const { editingWordId, setEditingWordId, setActiveTab } = useAppStore();
-  const { active: activeDictionary, activeDictionaryId } = useActiveDictionary();
+  const { active: activeDictionary, activeDictionaryId, dictionaries } = useActiveDictionary();
+  const language = getLanguage(activeDictionary?.language);
 
   const existingWord = useLiveQuery(
     () => editingWordId ? db.words.get(editingWordId) : undefined,
@@ -70,16 +72,22 @@ export function AddWordForm() {
     ) || null;
   }, [allWords, esWord, editingWordId, existingWord, activeDictionaryId]);
 
-  // Подсказка «возможно, вы имели в виду» — сравнение с базовым словарём
-  // и словами пользователя
+  // Подсказка «возможно, вы имели в виду» — сравнение с наборами слов
+  // того же языка и словами пользователя из словарей этого языка
   const spellHint = useMemo(() => {
     if (!esWord.trim() || esHasCyrillic || duplicateWord) return null;
+
+    const sameLangDictIds = new Set(
+      dictionaries.filter((d) => d.language === language.code).map((d) => d.id)
+    );
     const known = [
-      ...SEED_WORDS.map((s) => s.es),
-      ...(allWords?.map((w) => w.esWord) || []),
+      ...WORD_PACKS.filter((p) => p.language === language.code)
+        .flatMap((p) => p.words.map((s) => s.es)),
+      ...(allWords?.filter((w) => sameLangDictIds.has(w.dictionaryId))
+        .map((w) => w.esWord) || []),
     ];
     return findSuggestion(esWord, known);
-  }, [esWord, esHasCyrillic, duplicateWord, allWords]);
+  }, [esWord, esHasCyrillic, duplicateWord, allWords, dictionaries, language.code]);
 
   const applySuggestion = (suggestion: string) => {
     setEsWord(suggestion);
@@ -99,7 +107,7 @@ export function AddWordForm() {
     setAiLoading(true);
     setAiCorrection(null);
     try {
-      const suggestion = await suggestTranslation(esWord);
+      const suggestion = await suggestTranslation(esWord, language.aiName);
       setRuTranslation(suggestion.ruTranslation);
       setPartOfSpeech(suggestion.partOfSpeech);
 
@@ -198,12 +206,12 @@ export function AddWordForm() {
         {/* Spanish word */}
         <div className="space-y-1.5">
           <Label htmlFor="esWord" className="text-sm font-medium">
-            Испанское слово <span className="text-destructive">*</span>
+            {language.wordLabel} <span className="text-destructive">*</span>
           </Label>
           <div className="flex gap-2">
             <Input
               id="esWord"
-              placeholder="hola"
+              placeholder={language.example}
               value={esWord}
               onChange={(e) => {
                 setEsWord(e.target.value);
@@ -230,10 +238,10 @@ export function AddWordForm() {
           </div>
 
           {/* Предупреждения о написании */}
-          {esHasCyrillic && (
+          {esHasCyrillic && language.code !== 'other' && (
             <p className="text-xs text-destructive flex items-center gap-1">
               <AlertTriangle className="w-3 h-3 shrink-0" />
-              В испанском слове есть русские буквы
+              В слове есть русские буквы — проверьте раскладку
             </p>
           )}
           {duplicateWord && (

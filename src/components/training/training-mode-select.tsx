@@ -9,6 +9,7 @@ import { db } from "@/lib/db";
 import type { TrainingMode, TrainingDirection, Word } from "@/types";
 import { Brain, Zap, RotateCcw, ArrowRight, Star, AlertTriangle, BookOpen, GraduationCap, Sparkles } from "lucide-react";
 import { useActiveDictionary } from "@/hooks/use-active-dictionary";
+import { getLanguage } from "@/lib/languages";
 import { v4 as uuidv4 } from "uuid";
 import { useState } from "react";
 
@@ -19,10 +20,7 @@ const MODES: { value: TrainingMode; label: string; description: string; icon: Re
   { value: "sprint", label: "Спринт", description: "60 секунд на максимум правильных ответов. Быстро выбирайте: верный или неверный перевод.", icon: <Zap className="w-6 h-6" />, color: "bg-chart-3" },
 ];
 
-const DIRECTIONS: { value: TrainingDirection; label: string }[] = [
-  { value: "es-ru", label: "Исп. → Рус." },
-  { value: "ru-es", label: "Рус. → Исп." },
-];
+// Метки направлений строятся от языка активного словаря
 
 const SIZES = [10, 20, 30];
 
@@ -59,6 +57,12 @@ export function TrainingModeSelect() {
       default: return totalWords;
     }
   };
+
+  const language = getLanguage(activeDictionary?.language);
+  const DIRECTIONS: { value: TrainingDirection; label: string }[] = [
+    { value: "es-ru", label: `${language.short} → Рус.` },
+    { value: "ru-es", label: `Рус. → ${language.short}` },
+  ];
 
   const getFilteredWords = (): Word[] => {
     if (!allWords) return [];

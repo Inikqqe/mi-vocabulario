@@ -4,12 +4,12 @@ import type { Word } from '@/types';
 import { v4 as uuidv4 } from 'uuid';
 
 // Находит словарь по имени или создаёт новый. Возвращает его id.
-export async function ensureDictionary(name: string): Promise<string> {
+export async function ensureDictionary(name: string, language = 'es'): Promise<string> {
   const existing = await db.dictionaries.where('name').equals(name).first();
   if (existing) return existing.id;
 
   const id = uuidv4();
-  await db.dictionaries.add({ id, name, createdAt: new Date() });
+  await db.dictionaries.add({ id, name, language, createdAt: new Date() });
   return id;
 }
 
@@ -19,7 +19,7 @@ export async function loadPack(packId: string): Promise<{ added: number; diction
   const pack = WORD_PACKS.find((p) => p.id === packId);
   if (!pack) throw new Error(`Unknown pack: ${packId}`);
 
-  const dictionaryId = await ensureDictionary(pack.name);
+  const dictionaryId = await ensureDictionary(pack.name, pack.language);
 
   const existing = await db.words.where('dictionaryId').equals(dictionaryId).toArray();
   const existingWords = new Set(existing.map((w) => w.esWord.trim().toLowerCase()));

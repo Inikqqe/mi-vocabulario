@@ -12,6 +12,7 @@ import { PART_OF_SPEECH_LABELS, PART_OF_SPEECH_COLORS } from "@/types";
 import { getApiKey, setApiKey } from "@/lib/ai";
 import { loadPack, ensureDictionary } from "@/lib/seed";
 import { WORD_PACKS } from "@/lib/packs";
+import { getLanguage } from "@/lib/languages";
 import { useActiveDictionary } from "@/hooks/use-active-dictionary";
 import { useTheme } from "next-themes";
 import {
@@ -150,6 +151,10 @@ export function ProfileTab() {
         const text = await file.text();
         const data = JSON.parse(text);
         if (data.dictionaries) {
+          // Копии старых версий могут не содержать язык словаря
+          for (const d of data.dictionaries) {
+            if (!d.language) d.language = 'es';
+          }
           await db.dictionaries.bulkPut(data.dictionaries);
         }
         if (data.words) {
@@ -391,7 +396,9 @@ export function ProfileTab() {
                   <div key={pack.id} className="flex items-center gap-3">
                     <span className="text-xl shrink-0">{pack.emoji}</span>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium truncate">{pack.name}</p>
+                      <p className="text-sm font-medium truncate">
+                        {getLanguage(pack.language).emoji} {pack.name}
+                      </p>
                       <p className="text-xs text-muted-foreground truncate">
                         {pack.description} · {pack.words.length} слов
                       </p>

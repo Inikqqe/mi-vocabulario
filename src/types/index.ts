@@ -25,6 +25,8 @@ export type TrainingDirection = 'es-ru' | 'ru-es';
 export interface Dictionary {
   id: string;
   name: string;
+  // Код изучаемого языка ('es', 'en', ...) — см. src/lib/languages.ts
+  language: string;
   createdAt: Date;
 }
 

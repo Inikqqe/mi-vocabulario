@@ -237,12 +237,12 @@ export function SprintMode() {
         {currentQuestion && (
           <>
             <Card className="w-full max-w-sm p-6 text-center mb-4">
-              <p className="text-xs text-muted-foreground mb-1">{isEsToRu ? 'Испанское слово' : 'Русский перевод'}</p>
+              <p className="text-xs text-muted-foreground mb-1">{isEsToRu ? 'Слово' : 'Русский перевод'}</p>
               <h2 className="text-2xl font-semibold text-foreground mb-3">
                 {currentQuestion.shownText}
               </h2>
               <div className="border-t border-border pt-3">
-                <p className="text-xs text-muted-foreground mb-1">{isEsToRu ? 'Это перевод?' : 'Это испанское слово?'}</p>
+                <p className="text-xs text-muted-foreground mb-1">{isEsToRu ? 'Это перевод?' : 'Это то слово?'}</p>
                 <p className={`text-xl font-medium ${
                   showCorrect && !currentQuestion.isCorrect
                     ? 'line-through text-muted-foreground'

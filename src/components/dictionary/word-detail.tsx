@@ -6,6 +6,7 @@ import { Card } from "@/components/ui/card";
 import { PosBadge } from "@/components/shared/pos-badge";
 import { useAppStore } from "@/store/app-store";
 import { db } from "@/lib/db";
+import { getLanguage } from "@/lib/languages";
 import { useLiveQuery } from "dexie-react-hooks";
 import { toast } from "sonner";
 
@@ -15,6 +16,11 @@ export function WordDetail() {
   const word = useLiveQuery(
     () => selectedWordId ? db.words.get(selectedWordId) : undefined,
     [selectedWordId]
+  );
+
+  const dictionary = useLiveQuery(
+    () => word ? db.dictionaries.get(word.dictionaryId) : undefined,
+    [word?.dictionaryId]
   );
 
   if (!word) return null;
@@ -32,7 +38,8 @@ export function WordDetail() {
   const handleSpeak = () => {
     if ('speechSynthesis' in window) {
       const utterance = new SpeechSynthesisUtterance(word.esWord);
-      utterance.lang = 'es-ES';
+      const tts = getLanguage(dictionary?.language).tts;
+      if (tts) utterance.lang = tts;
       utterance.rate = 0.9;
       speechSynthesis.speak(utterance);
     }

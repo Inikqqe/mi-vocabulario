@@ -35,12 +35,20 @@ db.version(2).stores({
     await tx.table('dictionaries').add({
       id: DEFAULT_DICTIONARY_ID,
       name: 'Мой словарь',
+      language: 'es',
       createdAt: new Date(),
     });
     await tx.table('words').toCollection().modify((w) => {
       w.dictionaryId = DEFAULT_DICTIONARY_ID;
     });
   }
+});
+
+// v3: у словарей появился язык; существующие словари были испанскими
+db.version(3).stores({}).upgrade(async (tx) => {
+  await tx.table('dictionaries').toCollection().modify((d) => {
+    if (!d.language) d.language = 'es';
+  });
 });
 
 export { db };

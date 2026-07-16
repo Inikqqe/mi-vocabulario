@@ -27,15 +27,15 @@ const SUGGESTION_SCHEMA = {
   properties: {
     isSpelledCorrectly: {
       type: 'boolean',
-      description: 'true, если испанское слово написано без ошибок (правильная орфография и акценты).',
+      description: 'true, если слово на изучаемом языке написано без ошибок (правильная орфография и акценты).',
     },
     correctedEs: {
       type: 'string',
-      description: 'Правильное написание испанского слова. Если ошибок нет — исходное слово без изменений.',
+      description: 'Правильное написание слова на изучаемом языке. Если ошибок нет — исходное слово без изменений.',
     },
     ruTranslation: {
       type: 'string',
-      description: 'Перевод (исправленного) испанского слова на русский язык. Кратко: 1-3 варианта через запятую.',
+      description: 'Перевод (исправленного) слова на русский язык. Кратко: 1-3 варианта через запятую.',
     },
     partOfSpeech: {
       type: 'string',
@@ -47,7 +47,11 @@ const SUGGESTION_SCHEMA = {
   additionalProperties: false,
 } as const;
 
-export async function suggestTranslation(esWord: string): Promise<AiWordSuggestion> {
+export async function suggestTranslation(
+  esWord: string,
+  // Название языка в родительном падеже: «испанского», «английского»...
+  languageAiName = 'испанского'
+): Promise<AiWordSuggestion> {
   const apiKey = getApiKey();
   if (!apiKey) {
     throw new Error('NO_API_KEY');
@@ -60,8 +64,8 @@ export async function suggestTranslation(esWord: string): Promise<AiWordSuggesti
     model: 'claude-opus-4-8',
     max_tokens: 1024,
     system:
-      'Ты — словарь испанского языка для русскоязычных учеников. ' +
-      'Тебе дают испанское слово или фразу. Сначала проверь орфографию: если слово написано с ошибкой ' +
+      `Ты — словарь ${languageAiName} языка для русскоязычных учеников. ` +
+      `Тебе дают слово или фразу на изучаемом языке. Сначала проверь орфографию: если слово написано с ошибкой ` +
       '(опечатка, пропущенный акцент, неверная буква), укажи isSpelledCorrectly=false и правильное написание в correctedEs. ' +
       'Затем верни перевод исправленного слова на русский и часть речи.',
     output_config: {

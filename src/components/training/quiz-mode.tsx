@@ -7,6 +7,8 @@ import { Progress } from "@/components/ui/progress";
 import { useAppStore } from "@/store/app-store";
 import { db } from "@/lib/db";
 import { getLeitnerNextReview } from "@/types";
+import { useActiveDictionary } from "@/hooks/use-active-dictionary";
+import { getLanguage } from "@/lib/languages";
 import { motion } from "framer-motion";
 import { Check, X, RotateCcw } from "lucide-react";
 import { v4 as uuidv4 } from "uuid";
@@ -41,6 +43,9 @@ export function QuizMode() {
   const [correctCount, setCorrectCount] = useState(0);
   const [wrongCount, setWrongCount] = useState(0);
   const autoNextTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const { active: activeDictionary } = useActiveDictionary();
+  const language = getLanguage(activeDictionary?.language);
 
   const words = trainingWords;
   const currentWord = words[currentIndex];
@@ -154,7 +159,7 @@ export function QuizMode() {
       <div className="flex-1 flex flex-col items-center justify-center px-4">
         <Card className="w-full max-w-sm p-8 text-center mb-6">
           <p className="text-xs text-muted-foreground mb-2">
-            {isEsToRu ? 'Как переводится?' : 'Как по-испански?'}
+            {isEsToRu ? 'Как переводится?' : language.quizQuestion}
           </p>
           <h2 className="text-3xl font-semibold text-foreground">
             {isEsToRu ? currentWord.esWord : currentWord.ruTranslation}

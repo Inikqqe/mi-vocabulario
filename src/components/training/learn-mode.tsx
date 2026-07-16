@@ -8,6 +8,8 @@ import { PosBadge } from "@/components/shared/pos-badge";
 import { useAppStore } from "@/store/app-store";
 import { db } from "@/lib/db";
 import { getLeitnerNextReview } from "@/types";
+import { useActiveDictionary } from "@/hooks/use-active-dictionary";
+import { getLanguage } from "@/lib/languages";
 import { motion } from "framer-motion";
 import { Check, X, RotateCcw, ArrowRight, Volume2, GraduationCap } from "lucide-react";
 import { v4 as uuidv4 } from "uuid";
@@ -37,10 +39,13 @@ export function LearnMode() {
   const [wrongCount, setWrongCount] = useState(0);
   const autoNextTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  const { active: activeDictionary } = useActiveDictionary();
+  const language = getLanguage(activeDictionary?.language);
+
   const words = trainingWords;
   const currentWord = words[currentIndex];
 
-  // Варианты ответа для фазы проверки (перевод всегда ES → RU)
+  // Варианты ответа для фазы проверки (перевод всегда язык → русский)
   const options = useMemo(() => {
     if (!currentWord || phase !== 'check') return [];
     const others = shuffleArray(words.filter(w => w.id !== currentWord.id)).slice(0, 3);
@@ -52,7 +57,7 @@ export function LearnMode() {
   const handleSpeak = (text: string) => {
     if ('speechSynthesis' in window) {
       const utterance = new SpeechSynthesisUtterance(text);
-      utterance.lang = 'es-ES';
+      if (language.tts) utterance.lang = language.tts;
       utterance.rate = 0.9;
       speechSynthesis.speak(utterance);
     }
