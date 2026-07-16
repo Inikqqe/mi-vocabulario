@@ -1,4 +1,4 @@
-const CACHE_NAME = 'mi-vocabulario-v2';
+const CACHE_NAME = 'mi-vocabulario-v3';
 const STATIC_ASSETS = [
   './',
   './index.html',

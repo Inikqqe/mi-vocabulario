@@ -3,10 +3,16 @@ import type { PartOfSpeech, FilterOption, SortOption, TrainingMode, TrainingDire
 
 export type AppTab = 'dictionary' | 'add' | 'training' | 'profile';
 
+const ACTIVE_DICT_KEY = 'mi-vocabulario-active-dict';
+
 interface AppState {
   // Navigation
   activeTab: AppTab;
   setActiveTab: (tab: AppTab) => void;
+
+  // Active dictionary
+  activeDictionaryId: string | null;
+  setActiveDictionaryId: (id: string | null) => void;
 
   // Dictionary
   searchQuery: string;
@@ -53,6 +59,17 @@ export const useAppStore = create<AppState>((set) => ({
   // Navigation
   activeTab: 'dictionary',
   setActiveTab: (tab) => set({ activeTab: tab }),
+
+  // Active dictionary (persisted in localStorage)
+  activeDictionaryId:
+    typeof window !== 'undefined' ? localStorage.getItem(ACTIVE_DICT_KEY) : null,
+  setActiveDictionaryId: (id) => {
+    if (typeof window !== 'undefined') {
+      if (id) localStorage.setItem(ACTIVE_DICT_KEY, id);
+      else localStorage.removeItem(ACTIVE_DICT_KEY);
+    }
+    set({ activeDictionaryId: id });
+  },
 
   // Dictionary
   searchQuery: '',

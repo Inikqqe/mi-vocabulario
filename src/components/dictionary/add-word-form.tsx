@@ -12,6 +12,7 @@ import { PART_OF_SPEECH_LABELS, type PartOfSpeech } from "@/types";
 import { suggestTranslation, getApiKey } from "@/lib/ai";
 import { hasCyrillic, hasLatin, findSuggestion } from "@/lib/spellcheck";
 import { SEED_WORDS } from "@/lib/seed-words";
+import { useActiveDictionary } from "@/hooks/use-active-dictionary";
 import { toast } from "sonner";
 import { Save, Sparkles, Loader2, AlertTriangle, Lightbulb } from "lucide-react";
 
@@ -19,6 +20,7 @@ const POS_OPTIONS: PartOfSpeech[] = ['verb', 'noun', 'adj', 'adv', 'phrase', 'ot
 
 export function AddWordForm() {
   const { editingWordId, setEditingWordId, setActiveTab } = useAppStore();
+  const { active: activeDictionary, activeDictionaryId } = useActiveDictionary();
 
   const existingWord = useLiveQuery(
     () => editingWordId ? db.words.get(editingWordId) : undefined,
@@ -53,13 +55,20 @@ export function AddWordForm() {
   const esHasCyrillic = hasCyrillic(esWord);
   const ruHasLatin = hasLatin(ruTranslation);
 
+  // Дубликаты ищем в пределах активного словаря
   const duplicateWord = useMemo(() => {
     if (!allWords || !esWord.trim()) return null;
     const q = esWord.trim().toLowerCase();
+    const targetDictId = editingWordId && existingWord
+      ? existingWord.dictionaryId
+      : activeDictionaryId;
     return allWords.find(
-      (w) => w.esWord.trim().toLowerCase() === q && w.id !== editingWordId
+      (w) =>
+        w.dictionaryId === targetDictId &&
+        w.esWord.trim().toLowerCase() === q &&
+        w.id !== editingWordId
     ) || null;
-  }, [allWords, esWord, editingWordId]);
+  }, [allWords, esWord, editingWordId, existingWord, activeDictionaryId]);
 
   // Подсказка «возможно, вы имели в виду» — сравнение с базовым словарём
   // и словами пользователя
@@ -134,11 +143,16 @@ export function AddWordForm() {
         setEditingWordId(null);
         setActiveTab('dictionary');
       } else {
+        if (!activeDictionaryId) {
+          toast.error("Сначала выберите словарь");
+          return;
+        }
         const { v4: uuidv4 } = await import('uuid');
         const now = new Date();
 
         await db.words.add({
           id: uuidv4(),
+          dictionaryId: activeDictionaryId,
           esWord: esWord.trim(),
           ruTranslation: ruTranslation.trim(),
           transcription: "",
@@ -173,6 +187,11 @@ export function AddWordForm() {
         <h1 className="text-xl font-semibold text-foreground">
           {editingWordId ? "Редактировать слово" : "Новое слово"}
         </h1>
+        {!editingWordId && activeDictionary && (
+          <p className="text-xs text-muted-foreground">
+            В словарь «{activeDictionary.name}»
+          </p>
+        )}
       </div>
 
       <div className="flex-1 overflow-y-auto custom-scrollbar space-y-4">

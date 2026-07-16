@@ -6,9 +6,11 @@ import { useAppStore } from "@/store/app-store";
 import { WordCard } from "./word-card";
 import { SearchFilterBar } from "./search-filter-bar";
 import { WordDetail } from "./word-detail";
+import { DictionarySwitcher } from "./dictionary-switcher";
 import { EmptyState } from "@/components/shared/empty-state";
-import { Plus, BookOpen } from "lucide-react";
-import type { Word, PartOfSpeech } from "@/types";
+import { useActiveDictionary } from "@/hooks/use-active-dictionary";
+import { BookOpen } from "lucide-react";
+import type { Word } from "@/types";
 
 export function DictionaryTab() {
   const {
@@ -16,7 +18,14 @@ export function DictionaryTab() {
     selectedWordId, setSelectedWordId, setActiveTab,
   } = useAppStore();
 
-  const allWords = useLiveQuery(() => db.words.toArray()) as Word[] | undefined;
+  const { activeDictionaryId } = useActiveDictionary();
+
+  const allWords = useLiveQuery(
+    () => activeDictionaryId
+      ? db.words.where('dictionaryId').equals(activeDictionaryId).toArray()
+      : db.words.toArray(),
+    [activeDictionaryId]
+  ) as Word[] | undefined;
 
   if (selectedWordId) {
     return <WordDetail />;
@@ -63,11 +72,14 @@ export function DictionaryTab() {
 
   return (
     <div className="flex flex-col h-full">
-      <div className="px-1 pb-2">
-        <h1 className="text-xl font-semibold text-foreground">Словарь</h1>
-        {allWords && (
-          <p className="text-xs text-muted-foreground">{allWords.length} слов</p>
-        )}
+      <div className="px-1 pb-2 flex items-center justify-between gap-2">
+        <div>
+          <h1 className="text-xl font-semibold text-foreground">Словарь</h1>
+          {allWords && (
+            <p className="text-xs text-muted-foreground">{allWords.length} слов</p>
+          )}
+        </div>
+        <DictionarySwitcher />
       </div>
 
       <SearchFilterBar />

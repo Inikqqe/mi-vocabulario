@@ -8,7 +8,7 @@ import { useLiveQuery } from "dexie-react-hooks";
 import { db } from "@/lib/db";
 import type { TrainingMode, TrainingDirection, Word } from "@/types";
 import { Brain, Zap, RotateCcw, ArrowRight, Star, AlertTriangle, BookOpen, GraduationCap, Sparkles } from "lucide-react";
-
+import { useActiveDictionary } from "@/hooks/use-active-dictionary";
 import { v4 as uuidv4 } from "uuid";
 import { useState } from "react";
 
@@ -37,7 +37,14 @@ export function TrainingModeSelect() {
 
   const [sessionSize, setSessionSize] = useState(10);
 
-  const allWords = useLiveQuery(() => db.words.toArray());
+  const { active: activeDictionary, activeDictionaryId } = useActiveDictionary();
+
+  const allWords = useLiveQuery(
+    () => activeDictionaryId
+      ? db.words.where('dictionaryId').equals(activeDictionaryId).toArray()
+      : db.words.toArray(),
+    [activeDictionaryId]
+  );
   const totalWords = allWords?.length || 0;
   const favoriteWords = allWords?.filter(w => w.isFavorite).length || 0;
   const weakWords = allWords?.filter(w => w.leitnerBox <= 2).length || 0;
@@ -108,7 +115,9 @@ export function TrainingModeSelect() {
     <div className="flex flex-col h-full">
       <div className="px-1 pb-3">
         <h1 className="text-xl font-semibold text-foreground">Тренировка</h1>
-        <p className="text-xs text-muted-foreground">{totalWords} слов в словаре</p>
+        <p className="text-xs text-muted-foreground">
+          {activeDictionary ? `«${activeDictionary.name}» · ` : ''}{totalWords} слов
+        </p>
       </div>
 
       <div className="flex-1 overflow-y-auto custom-scrollbar space-y-4">

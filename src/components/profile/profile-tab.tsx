@@ -10,7 +10,9 @@ import { db } from "@/lib/db";
 import type { PartOfSpeech } from "@/types";
 import { PART_OF_SPEECH_LABELS, PART_OF_SPEECH_COLORS } from "@/types";
 import { getApiKey, setApiKey } from "@/lib/ai";
-import { loadBaseDictionary } from "@/lib/seed";
+import { loadPack, ensureDictionary } from "@/lib/seed";
+import { WORD_PACKS } from "@/lib/packs";
+import { useActiveDictionary } from "@/hooks/use-active-dictionary";
 import { useTheme } from "next-themes";
 import {
   BookOpen, Target, Flame, TrendingUp,
@@ -24,6 +26,7 @@ export function ProfileTab() {
   const [activeSection, setActiveSection] = useState<'stats' | 'settings' | 'export'>('stats');
   const { resolvedTheme, setTheme } = useTheme();
   const [apiKeyInput, setApiKeyInput] = useState("");
+  const { active: activeDictionary, activeDictionaryId, setActiveDictionaryId } = useActiveDictionary();
 
   useEffect(() => {
     setApiKeyInput(getApiKey());
@@ -78,20 +81,24 @@ export function ProfileTab() {
     toast.success(apiKeyInput.trim() ? "API-ключ сохранён" : "API-ключ удалён");
   };
 
-  const handleLoadBaseDictionary = async () => {
-    const added = await loadBaseDictionary();
+  const handleLoadPack = async (packId: string, packName: string) => {
+    const { added, dictionaryId } = await loadPack(packId);
+    setActiveDictionaryId(dictionaryId);
     if (added > 0) {
-      toast.success(`Добавлено ${added} слов из базового словаря`);
+      toast.success(`«${packName}»: добавлено ${added} слов`);
     } else {
-      toast.info("Все слова базового словаря уже добавлены");
+      toast.info(`Все слова набора «${packName}» уже добавлены`);
     }
   };
 
   // Export to CSV
   const handleExportCSV = useCallback(async () => {
     const allWords = await db.words.toArray();
+    const allDicts = await db.dictionaries.toArray();
+    const dictNames = new Map(allDicts.map(d => [d.id, d.name]));
 
     const csvData = allWords.map(w => ({
+      'Словарь': dictNames.get(w.dictionaryId) || '',
       'Испанское слово': w.esWord,
       'Перевод': w.ruTranslation,
       'Часть речи': w.partOfSpeech,
@@ -114,10 +121,11 @@ export function ProfileTab() {
   // Export to JSON
   const handleExportJSON = useCallback(async () => {
     const data = {
+      dictionaries: await db.dictionaries.toArray(),
       words: await db.words.toArray(),
       trainingRecords: await db.trainingRecords.toArray(),
       exportedAt: new Date().toISOString(),
-      version: '1.1',
+      version: '2.0',
     };
 
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
@@ -141,7 +149,16 @@ export function ProfileTab() {
       try {
         const text = await file.text();
         const data = JSON.parse(text);
+        if (data.dictionaries) {
+          await db.dictionaries.bulkPut(data.dictionaries);
+        }
         if (data.words) {
+          // Резервные копии старых версий не содержат dictionaryId
+          const orphans = data.words.filter((w: { dictionaryId?: string }) => !w.dictionaryId);
+          if (orphans.length > 0) {
+            const fallbackId = await ensureDictionary('Импортированный словарь');
+            for (const w of orphans) w.dictionaryId = fallbackId;
+          }
           await db.words.bulkPut(data.words);
         }
         toast.success(`Импортировано ${data.words?.length || 0} слов`);
@@ -152,8 +169,12 @@ export function ProfileTab() {
     input.click();
   }, []);
 
-  // Import from CSV
+  // Import from CSV (в активный словарь)
   const handleImportCSV = useCallback(() => {
+    if (!activeDictionaryId) {
+      toast.error("Сначала выберите словарь");
+      return;
+    }
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = '.csv';
@@ -168,6 +189,7 @@ export function ProfileTab() {
 
         const wordsToAdd = (result.data as Record<string, string>[]).map((row) => ({
           id: uuidv4(),
+          dictionaryId: activeDictionaryId,
           esWord: row['Испанское слово'] || row['esWord'] || '',
           ruTranslation: row['Перевод'] || row['ruTranslation'] || '',
           transcription: '',
@@ -191,7 +213,7 @@ export function ProfileTab() {
       }
     };
     input.click();
-  }, []);
+  }, [activeDictionaryId]);
 
   return (
     <div className="flex flex-col h-full">
@@ -363,13 +385,32 @@ export function ProfileTab() {
         {activeSection === 'export' && (
           <>
             <Card className="p-4">
-              <h3 className="text-sm font-medium text-muted-foreground mb-3">Базовый словарь</h3>
-              <Button variant="outline" className="w-full justify-start" onClick={handleLoadBaseDictionary}>
-                <BookPlus className="w-4 h-4 mr-2" />
-                Загрузить базовый словарь (200 слов)
-              </Button>
-              <p className="text-xs text-muted-foreground mt-2">
-                Добавит 200 основных испанских слов. Уже добавленные слова пропускаются.
+              <h3 className="text-sm font-medium text-muted-foreground mb-3">Наборы слов</h3>
+              <div className="space-y-2">
+                {WORD_PACKS.map((pack) => (
+                  <div key={pack.id} className="flex items-center gap-3">
+                    <span className="text-xl shrink-0">{pack.emoji}</span>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate">{pack.name}</p>
+                      <p className="text-xs text-muted-foreground truncate">
+                        {pack.description} · {pack.words.length} слов
+                      </p>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="shrink-0"
+                      onClick={() => handleLoadPack(pack.id, pack.name)}
+                    >
+                      <BookPlus className="w-3.5 h-3.5 mr-1" />
+                      Добавить
+                    </Button>
+                  </div>
+                ))}
+              </div>
+              <p className="text-xs text-muted-foreground mt-3">
+                Каждый набор добавляется отдельным словарём — переключаться между ними
+                можно на вкладке «Словарь». Уже добавленные слова пропускаются.
               </p>
             </Card>
 
@@ -399,6 +440,11 @@ export function ProfileTab() {
                   Импорт из JSON
                 </Button>
               </div>
+              {activeDictionary && (
+                <p className="text-xs text-muted-foreground mt-2">
+                  CSV импортируется в текущий словарь «{activeDictionary.name}»
+                </p>
+              )}
             </Card>
           </>
         )}

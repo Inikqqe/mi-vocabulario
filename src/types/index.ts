@@ -22,8 +22,15 @@ export type TrainingMode = 'learn' | 'flashcard' | 'quiz' | 'sprint';
 export type TrainingResult = 'know' | 'doubt' | 'dont_know' | 'correct' | 'wrong';
 export type TrainingDirection = 'es-ru' | 'ru-es';
 
+export interface Dictionary {
+  id: string;
+  name: string;
+  createdAt: Date;
+}
+
 export interface Word {
   id: string;
+  dictionaryId: string;
   esWord: string;
   ruTranslation: string;
   transcription: string;
