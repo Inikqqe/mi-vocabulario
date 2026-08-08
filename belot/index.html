@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Белот — счётчик очков</title>
+</head>
+<body>
+<style>
+  :root {
+    --felt: #0e3a2c;
+    --felt-deep: #0a2c22;
+    --felt-line: rgba(233, 228, 212, 0.16);
+    --on-felt: #e9e4d4;
+    --on-felt-soft: #b9b39d;
+    --card: #faf6ec;
+    --card-edge: #e2d9c2;
+    --card-inset: #fffdf7;
+    --ink: #28261f;
+    --ink-soft: #75705e;
+    --gold: #c9973b;
+    --gold-soft: #f0e3c6;
+    --suit-red: #a83232;
+    --serif: Georgia, "Times New Roman", "Droid Serif", serif;
+    --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { background: var(--felt); }
+  body {
+    font-family: var(--sans);
+    background: radial-gradient(ellipse 120% 90% at 50% -10%, #14503c 0%, var(--felt) 55%, var(--felt-deep) 100%) fixed var(--felt);
+    color: var(--on-felt);
+    min-height: 100vh;
+    padding: 28px 16px 48px;
+  }
+  .container { max-width: 720px; margin: 0 auto; }
+
+  .masthead { text-align: center; margin-bottom: 26px; }
+  .masthead .suits { color: var(--gold); letter-spacing: .6em; font-size: .95rem; margin-bottom: 10px; }
+  .masthead .suits .red { color: #d96c5f; }
+  h1 {
+    font-family: var(--serif);
+    font-size: 2.1rem;
+    font-weight: 700;
+    letter-spacing: .02em;
+    color: var(--card);
+    text-wrap: balance;
+  }
+  .subtitle { color: var(--on-felt-soft); font-size: .92rem; margin-top: 6px; font-style: italic; font-family: var(--serif); }
+
+  .card {
+    background: var(--card);
+    color: var(--ink);
+    border: 1px solid var(--card-edge);
+    border-radius: 14px;
+    box-shadow: 0 1px 0 rgba(255,255,255,.25) inset, 0 10px 24px -14px rgba(0,0,0,.55);
+    padding: 20px;
+    margin-bottom: 18px;
+  }
+  h2 {
+    font-family: var(--serif);
+    font-size: 1.15rem;
+    color: var(--ink);
+    margin-bottom: 14px;
+  }
+  h2::after { content: " ♠"; color: var(--gold); font-size: .9em; }
+
+  label {
+    display: block;
+    font-size: .74rem;
+    text-transform: uppercase;
+    letter-spacing: .09em;
+    color: var(--ink-soft);
+    margin: 16px 0 7px;
+  }
+  input[type="text"], input[type="number"] {
+    width: 100%;
+    padding: 10px 12px;
+    border-radius: 9px;
+    border: 1px solid var(--card-edge);
+    background: var(--card-inset);
+    color: var(--ink);
+    font-size: 1rem;
+    font-family: var(--sans);
+  }
+  input:focus-visible, button:focus-visible { outline: 2px solid var(--gold); outline-offset: 1px; }
+
+  .row { display: flex; gap: 10px; flex-wrap: wrap; }
+  .row > * { flex: 1; min-width: 130px; }
+
+  .seg { display: flex; gap: 8px; flex-wrap: wrap; }
+  .seg button {
+    flex: 1;
+    min-width: 92px;
+    padding: 10px;
+    border-radius: 9px;
+    border: 1px solid var(--card-edge);
+    background: var(--card-inset);
+    color: var(--ink-soft);
+    font-size: .95rem;
+    font-family: var(--sans);
+    cursor: pointer;
+  }
+  .seg button.active {
+    background: var(--felt);
+    border-color: var(--felt);
+    color: var(--card);
+    font-weight: 600;
+  }
+
+  .btn {
+    display: block;
+    width: 100%;
+    padding: 13px;
+    margin-top: 18px;
+    border: 1px solid var(--felt-deep);
+    border-radius: 11px;
+    background: var(--felt);
+    color: var(--card);
+    font-size: 1.02rem;
+    font-weight: 600;
+    font-family: var(--sans);
+    cursor: pointer;
+  }
+  .btn:hover { background: #135040; }
+  .btn.secondary {
+    background: transparent;
+    border: 1px solid var(--card-edge);
+    color: var(--ink-soft);
+    font-weight: 400;
+    font-size: .9rem;
+    padding: 9px;
+  }
+  .btn.secondary:hover { color: var(--ink); background: var(--card-inset); }
+  .btn.danger-outline {
+    background: transparent;
+    border: 1px solid rgba(233, 228, 212, 0.35);
+    color: var(--on-felt-soft);
+    font-size: .9rem;
+    font-weight: 400;
+    padding: 10px;
+  }
+  .btn.danger-outline:hover { border-color: #d96c5f; color: #eab7ae; background: rgba(168, 50, 50, .18); }
+
+  .totals { display: grid; gap: 12px; }
+  .totals.cols-2 { grid-template-columns: 1fr 1fr; }
+  .totals.cols-3 { grid-template-columns: 1fr 1fr 1fr; }
+  .total-card {
+    background: var(--card-inset);
+    border: 1px solid var(--card-edge);
+    border-radius: 10px;
+    padding: 14px 10px 12px;
+    text-align: center;
+    position: relative;
+  }
+  .total-card.leader { border-color: var(--gold); box-shadow: 0 0 0 1px var(--gold); }
+  .total-card.leader::before {
+    content: "♛";
+    position: absolute;
+    top: 6px;
+    right: 9px;
+    color: var(--gold);
+    font-size: .85rem;
+  }
+  .total-card .name {
+    font-size: .82rem;
+    color: var(--ink-soft);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .total-card .score {
+    font-family: var(--serif);
+    font-size: 2.15rem;
+    font-weight: 700;
+    color: var(--ink);
+    margin: 3px 0 8px;
+    font-variant-numeric: tabular-nums;
+  }
+  .progress { height: 5px; background: var(--card-edge); border-radius: 3px; overflow: hidden; }
+  .progress > div { height: 100%; background: var(--gold); border-radius: 3px; transition: width .3s; }
+
+  .meta {
+    display: flex; justify-content: space-between; align-items: center;
+    color: var(--ink-soft); font-size: .84rem; margin-bottom: 14px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .entry-grid { display: grid; gap: 14px; }
+  .entry-grid.cols-2 { grid-template-columns: 1fr 1fr; }
+  .entry-grid.cols-3 { grid-template-columns: 1fr 1fr 1fr; }
+  .entry-col .name {
+    font-size: .82rem; color: var(--ink-soft); margin-bottom: 6px; text-align: center;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .entry-col input { text-align: center; font-variant-numeric: tabular-nums; }
+  .chips { display: flex; gap: 5px; flex-wrap: wrap; justify-content: center; margin-top: 7px; }
+  .chips button {
+    padding: 4px 9px;
+    border-radius: 999px;
+    border: 1px solid var(--card-edge);
+    background: transparent;
+    color: var(--ink-soft);
+    font-size: .78rem;
+    font-family: var(--sans);
+    cursor: pointer;
+    font-variant-numeric: tabular-nums;
+  }
+  .chips button:hover { color: var(--felt); border-color: var(--felt); }
+  .hint { color: var(--ink-soft); font-size: .8rem; text-align: center; margin-top: 12px; }
+
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: .92rem; font-variant-numeric: tabular-nums; }
+  th, td { padding: 8px 6px; text-align: center; border-bottom: 1px solid var(--card-edge); color: var(--ink); }
+  th {
+    color: var(--ink-soft); font-weight: 500; font-size: .72rem;
+    text-transform: uppercase; letter-spacing: .08em;
+  }
+  td.running, td .running { color: var(--ink-soft); font-size: .76rem; }
+  tr:last-child td { border-bottom: none; }
+
+  .winner-banner {
+    background: linear-gradient(160deg, var(--gold-soft), #e7cf9b);
+    border: 1px solid var(--gold);
+    color: #57430f;
+    border-radius: 14px;
+    padding: 22px;
+    text-align: center;
+    margin-bottom: 18px;
+    box-shadow: 0 10px 24px -14px rgba(0,0,0,.55);
+  }
+  .winner-banner .trophy { font-size: 2rem; }
+  .winner-banner .who { font-family: var(--serif); font-size: 1.45rem; font-weight: 700; margin-top: 6px; color: #3f3008; }
+  .winner-banner .label { font-size: .8rem; letter-spacing: .14em; text-transform: uppercase; margin-top: 5px; }
+
+  .hidden { display: none !important; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .progress > div { transition: none; }
+  }
+</style>
+
+<div class="container">
+  <header class="masthead">
+    <div class="suits">♠ <span class="red">♥</span> ♣ <span class="red">♦</span></div>
+    <h1>Белот</h1>
+    <p class="subtitle">счётчик очков — втроём и командами 2×2</p>
+  </header>
+
+  <!-- ЭКРАН НАСТРОЙКИ -->
+  <div id="setup-screen">
+    <div class="card">
+      <h2>Новая игра</h2>
+
+      <label>Режим игры</label>
+      <div class="seg" id="mode-seg">
+        <button data-mode="3" class="active">3 игрока</button>
+        <button data-mode="4">4 игрока (2×2)</button>
+      </div>
+
+      <div id="names-3">
+        <label>Имена игроков</label>
+        <div class="row">
+          <input type="text" id="p3-1" placeholder="Игрок 1" maxlength="20">
+          <input type="text" id="p3-2" placeholder="Игрок 2" maxlength="20">
+          <input type="text" id="p3-3" placeholder="Игрок 3" maxlength="20">
+        </div>
+      </div>
+
+      <div id="names-4" class="hidden">
+        <label>Названия команд</label>
+        <div class="row">
+          <input type="text" id="t4-1" placeholder="Команда «Мы»" maxlength="20">
+          <input type="text" id="t4-2" placeholder="Команда «Вы»" maxlength="20">
+        </div>
+      </div>
+
+      <label>Играем до</label>
+      <div class="seg" id="target-seg">
+        <button data-target="151">151</button>
+        <button data-target="301">301</button>
+        <button data-target="501" class="active">501</button>
+        <button data-target="1001">1001</button>
+      </div>
+      <label>или своё значение</label>
+      <input type="number" id="target-custom" min="1" placeholder="Например, 251">
+
+      <button class="btn" id="start-btn">Начать игру</button>
+    </div>
+  </div>
+
+  <!-- ЭКРАН ИГРЫ -->
+  <div id="game-screen" class="hidden">
+    <div id="winner-banner" class="winner-banner hidden">
+      <div class="trophy">🏆</div>
+      <div class="who" id="winner-name"></div>
+      <div class="label">Победа</div>
+    </div>
+
+    <div class="card">
+      <div class="meta">
+        <span id="game-meta"></span>
+        <span id="round-count"></span>
+      </div>
+      <div class="totals" id="totals"></div>
+    </div>
+
+    <div class="card" id="entry-card">
+      <h2>Очки за раздачу</h2>
+      <div class="entry-grid" id="entry-grid"></div>
+      <p class="hint">В раздаче 162 очка (+ объявления: белот 20, терц 20, полтинник 50, сто 100, каре 100–200)</p>
+      <button class="btn" id="add-round-btn">Записать раздачу</button>
+    </div>
+
+    <div class="card" id="history-card">
+      <h2>История раздач</h2>
+      <div class="table-wrap">
+        <table>
+          <thead><tr id="history-head"></tr></thead>
+          <tbody id="history-body"></tbody>
+        </table>
+      </div>
+      <button class="btn secondary" id="undo-btn">Отменить последнюю раздачу</button>
+    </div>
+
+    <button class="btn danger-outline" id="new-game-btn">Завершить и начать новую игру</button>
+  </div>
+</div>
+
+<script>
+(function () {
+  const STORAGE_KEY = 'belot-score-state-v1';
+
+  let state = null; // { mode, names[], target, rounds[[..]] }
+  let setupMode = '3';
+
+  const $ = (id) => document.getElementById(id);
+
+  // ---------- Настройка ----------
+  $('mode-seg').addEventListener('click', (e) => {
+    const btn = e.target.closest('button');
+    if (!btn) return;
+    setupMode = btn.dataset.mode;
+    document.querySelectorAll('#mode-seg button').forEach(b => b.classList.toggle('active', b === btn));
+    $('names-3').classList.toggle('hidden', setupMode !== '3');
+    $('names-4').classList.toggle('hidden', setupMode !== '4');
+  });
+
+  $('target-seg').addEventListener('click', (e) => {
+    const btn = e.target.closest('button');
+    if (!btn) return;
+    document.querySelectorAll('#target-seg button').forEach(b => b.classList.toggle('active', b === btn));
+    $('target-custom').value = '';
+  });
+
+  $('target-custom').addEventListener('input', () => {
+    if ($('target-custom').value) {
+      document.querySelectorAll('#target-seg button').forEach(b => b.classList.remove('active'));
+    }
+  });
+
+  $('start-btn').addEventListener('click', () => {
+    let names;
+    if (setupMode === '3') {
+      names = [
+        $('p3-1').value.trim() || 'Игрок 1',
+        $('p3-2').value.trim() || 'Игрок 2',
+        $('p3-3').value.trim() || 'Игрок 3',
+      ];
+    } else {
+      names = [
+        $('t4-1').value.trim() || 'Мы',
+        $('t4-2').value.trim() || 'Вы',
+      ];
+    }
+    let target = parseInt($('target-custom').value, 10);
+    if (!target || target < 1) {
+      const activeBtn = document.querySelector('#target-seg button.active');
+      target = activeBtn ? parseInt(activeBtn.dataset.target, 10) : 501;
+    }
+    state = { mode: setupMode, names, target, rounds: [] };
+    save();
+    renderGame();
+  });
+
+  // ---------- Игра ----------
+  function totals() {
+    const t = state.names.map(() => 0);
+    state.rounds.forEach(r => r.forEach((v, i) => t[i] += v));
+    return t;
+  }
+
+  function isFinished() {
+    return totals().some(t => t >= state.target);
+  }
+
+  function renderGame() {
+    $('setup-screen').classList.add('hidden');
+    $('game-screen').classList.remove('hidden');
+
+    const n = state.names.length;
+    const cols = n === 2 ? 'cols-2' : 'cols-3';
+    const tot = totals();
+    const max = Math.max(...tot);
+
+    $('game-meta').textContent = (state.mode === '3' ? 'Белот втроём' : 'Белот 2×2') + ' · до ' + state.target;
+    $('round-count').textContent = 'Раздач: ' + state.rounds.length;
+
+    // Итоги
+    const totalsEl = $('totals');
+    totalsEl.className = 'totals ' + cols;
+    totalsEl.innerHTML = state.names.map((name, i) => `
+      <div class="total-card ${tot[i] === max && max > 0 ? 'leader' : ''}">
+        <div class="name">${esc(name)}</div>
+        <div class="score">${tot[i]}</div>
+        <div class="progress"><div style="width:${Math.min(100, tot[i] / state.target * 100)}%"></div></div>
+      </div>
+    `).join('');
+
+    // Ввод раздачи
+    const grid = $('entry-grid');
+    grid.className = 'entry-grid ' + cols;
+    grid.innerHTML = state.names.map((name, i) => `
+      <div class="entry-col">
+        <div class="name">${esc(name)}</div>
+        <input type="number" min="0" step="1" inputmode="numeric" placeholder="0" data-entry="${i}">
+        <div class="chips">
+          <button type="button" data-add="${i}" data-val="20">+20</button>
+          <button type="button" data-add="${i}" data-val="50">+50</button>
+          <button type="button" data-add="${i}" data-val="100">+100</button>
+        </div>
+      </div>
+    `).join('');
+
+    // История
+    $('history-head').innerHTML = '<th>№</th>' + state.names.map(nm => `<th>${esc(nm)}</th>`).join('');
+    const running = state.names.map(() => 0);
+    $('history-body').innerHTML = state.rounds.map((r, ri) => {
+      r.forEach((v, i) => running[i] += v);
+      const cells = r.map((v, i) => `<td>${v}<div class="running">${running.slice()[i]}</div></td>`).join('');
+      return `<tr><td>${ri + 1}</td>${cells}</tr>`;
+    }).join('') || '<tr><td colspan="' + (n + 1) + '" style="color:var(--ink-soft)">Пока нет записей</td></tr>';
+
+    $('undo-btn').classList.toggle('hidden', state.rounds.length === 0);
+
+    // Победитель
+    const finished = isFinished();
+    $('winner-banner').classList.toggle('hidden', !finished);
+    $('entry-card').classList.toggle('hidden', finished);
+    if (finished) {
+      const winners = state.names.filter((_, i) => tot[i] === max);
+      $('winner-name').textContent = winners.join(' и ');
+    }
+  }
+
+  $('entry-grid').addEventListener('click', (e) => {
+    const btn = e.target.closest('button[data-add]');
+    if (!btn) return;
+    const input = document.querySelector(`input[data-entry="${btn.dataset.add}"]`);
+    input.value = (parseInt(input.value, 10) || 0) + parseInt(btn.dataset.val, 10);
+  });
+
+  $('add-round-btn').addEventListener('click', () => {
+    const values = state.names.map((_, i) => {
+      const v = parseInt(document.querySelector(`input[data-entry="${i}"]`).value, 10);
+      return Number.isFinite(v) && v > 0 ? v : 0;
+    });
+    if (values.every(v => v === 0)) return;
+    state.rounds.push(values);
+    save();
+    renderGame();
+  });
+
+  $('undo-btn').addEventListener('click', () => {
+    state.rounds.pop();
+    save();
+    renderGame();
+  });
+
+  let confirmReset = 0;
+  $('new-game-btn').addEventListener('click', () => {
+    // системный confirm() недоступен во встроенном фрейме — подтверждаем вторым нажатием
+    if (state.rounds.length > 0 && !isFinished() && !confirmReset) {
+      $('new-game-btn').textContent = 'Игра не окончена — нажмите ещё раз';
+      confirmReset = setTimeout(() => {
+        confirmReset = 0;
+        $('new-game-btn').textContent = 'Завершить и начать новую игру';
+      }, 4000);
+      return;
+    }
+    clearTimeout(confirmReset);
+    confirmReset = 0;
+    $('new-game-btn').textContent = 'Завершить и начать новую игру';
+    state = null;
+    try { localStorage.removeItem(STORAGE_KEY); } catch (e) { /* нет доступа к хранилищу */ }
+    $('game-screen').classList.add('hidden');
+    $('setup-screen').classList.remove('hidden');
+  });
+
+  // ---------- Хранение ----------
+  function save() {
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch (e) { /* приватный режим */ }
+  }
+
+  function load() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return;
+      const s = JSON.parse(raw);
+      if (s && Array.isArray(s.names) && Array.isArray(s.rounds) && s.target > 0) {
+        state = s;
+        renderGame();
+      }
+    } catch (e) { /* повреждённые данные — начинаем заново */ }
+  }
+
+  function esc(s) {
+    return s.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  }
+
+  load();
+})();
+</script>
+</body>
+</html>
