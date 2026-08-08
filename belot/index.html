@@ -73,6 +73,18 @@
     color: var(--ink-soft);
     margin: 16px 0 7px;
   }
+  label.check {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    text-transform: none;
+    letter-spacing: 0;
+    font-size: .92rem;
+    color: var(--ink);
+    margin-top: 18px;
+    cursor: pointer;
+  }
+  label.check input { accent-color: var(--felt); width: 17px; height: 17px; }
   input[type="text"], input[type="number"] {
     width: 100%;
     padding: 10px 12px;
@@ -91,7 +103,7 @@
   .seg { display: flex; gap: 8px; flex-wrap: wrap; }
   .seg button {
     flex: 1;
-    min-width: 92px;
+    min-width: 70px;
     padding: 10px;
     border-radius: 9px;
     border: 1px solid var(--card-edge);
@@ -192,6 +204,14 @@
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   }
   .entry-col input { text-align: center; font-variant-numeric: tabular-nums; }
+  .entry-col .conv {
+    text-align: center;
+    font-size: .84rem;
+    color: var(--ink-soft);
+    margin-top: 5px;
+    font-variant-numeric: tabular-nums;
+  }
+  .entry-col .conv b { color: var(--felt); font-size: 1rem; }
   .chips { display: flex; gap: 5px; flex-wrap: wrap; justify-content: center; margin-top: 7px; }
   .chips button {
     padding: 4px 9px;
@@ -214,7 +234,8 @@
     color: var(--ink-soft); font-weight: 500; font-size: .72rem;
     text-transform: uppercase; letter-spacing: .08em;
   }
-  td.running, td .running { color: var(--ink-soft); font-size: .76rem; }
+  td .running { color: var(--ink-soft); font-size: .76rem; }
+  td .running.burned { color: var(--suit-red); font-weight: 600; }
   tr:last-child td { border-bottom: none; }
 
   .winner-banner {
@@ -275,13 +296,18 @@
 
       <label>Играем до</label>
       <div class="seg" id="target-seg">
+        <button data-target="51">51</button>
+        <button data-target="101" class="active">101</button>
         <button data-target="151">151</button>
-        <button data-target="301">301</button>
-        <button data-target="501" class="active">501</button>
-        <button data-target="1001">1001</button>
+        <button data-target="501">501</button>
       </div>
       <label>или своё значение</label>
-      <input type="number" id="target-custom" min="1" placeholder="Например, 251">
+      <input type="number" id="target-custom" min="1" placeholder="Например, 71">
+
+      <label class="check">
+        <input type="checkbox" id="burn-100" checked>
+        Ровно 100 — «сгорание»: минус 100 очков
+      </label>
 
       <button class="btn" id="start-btn">Начать игру</button>
     </div>
@@ -306,7 +332,7 @@
     <div class="card" id="entry-card">
       <h2>Очки за раздачу</h2>
       <div class="entry-grid" id="entry-grid"></div>
-      <p class="hint">В раздаче 162 очка (+ объявления: белот 20, терц 20, полтинник 50, сто 100, каре 100–200)</p>
+      <p class="hint">Вводите очки с карт как есть (например, 38) — в счёт пойдут десятки с округлением: 38 → <b>4</b>. В раздаче 162 очка + объявления (белот 20, терц 20, полтинник 50, сто 100, каре 100–200).</p>
       <button class="btn" id="add-round-btn">Записать раздачу</button>
     </div>
 
@@ -318,6 +344,7 @@
           <tbody id="history-body"></tbody>
         </table>
       </div>
+      <p class="hint" id="burn-hint">🔥 — счёт попал ровно на 100 и «сгорел» (минус 100)</p>
       <button class="btn secondary" id="undo-btn">Отменить последнюю раздачу</button>
     </div>
 
@@ -327,12 +354,15 @@
 
 <script>
 (function () {
-  const STORAGE_KEY = 'belot-score-state-v1';
+  const STORAGE_KEY = 'belot-score-state-v2';
 
-  let state = null; // { mode, names[], target, rounds[[..]] }
+  let state = null; // { mode, names[], target, burn100, rounds[[очки в десятках..]] }
   let setupMode = '3';
 
   const $ = (id) => document.getElementById(id);
+
+  // сырые очки с карт -> очки партии (десятки с округлением): 38 -> 4
+  const toTens = (raw) => Math.round(raw / 10);
 
   // ---------- Настройка ----------
   $('mode-seg').addEventListener('click', (e) => {
@@ -374,22 +404,31 @@
     let target = parseInt($('target-custom').value, 10);
     if (!target || target < 1) {
       const activeBtn = document.querySelector('#target-seg button.active');
-      target = activeBtn ? parseInt(activeBtn.dataset.target, 10) : 501;
+      target = activeBtn ? parseInt(activeBtn.dataset.target, 10) : 101;
     }
-    state = { mode: setupMode, names, target, rounds: [] };
+    state = { mode: setupMode, names, target, burn100: $('burn-100').checked, rounds: [] };
     save();
     renderGame();
   });
 
-  // ---------- Игра ----------
-  function totals() {
+  // ---------- Подсчёт ----------
+  // Возвращает итоги и позиции «сгораний»: burns[ri][i] = true,
+  // если после раздачи ri счёт стороны i попал ровно на 100 и сгорел.
+  function computeTotals() {
     const t = state.names.map(() => 0);
-    state.rounds.forEach(r => r.forEach((v, i) => t[i] += v));
-    return t;
+    const burns = state.rounds.map(r => r.map(() => false));
+    state.rounds.forEach((r, ri) => r.forEach((v, i) => {
+      t[i] += v;
+      if (state.burn100 && v > 0 && t[i] === 100) {
+        t[i] -= 100;
+        burns[ri][i] = true;
+      }
+    }));
+    return { totals: t, burns };
   }
 
   function isFinished() {
-    return totals().some(t => t >= state.target);
+    return computeTotals().totals.some(t => t >= state.target);
   }
 
   function renderGame() {
@@ -398,10 +437,12 @@
 
     const n = state.names.length;
     const cols = n === 2 ? 'cols-2' : 'cols-3';
-    const tot = totals();
+    const { totals: tot, burns } = computeTotals();
     const max = Math.max(...tot);
+    const anyBurn = burns.some(r => r.some(Boolean));
 
-    $('game-meta').textContent = (state.mode === '3' ? 'Белот втроём' : 'Белот 2×2') + ' · до ' + state.target;
+    $('game-meta').textContent = (state.mode === '3' ? 'Белот втроём' : 'Белот 2×2') + ' · до ' + state.target
+      + (state.burn100 ? ' · 100 сгорает' : '');
     $('round-count').textContent = 'Раздач: ' + state.rounds.length;
 
     // Итоги
@@ -415,13 +456,14 @@
       </div>
     `).join('');
 
-    // Ввод раздачи
+    // Ввод раздачи: сырые очки + живой пересчёт в десятки
     const grid = $('entry-grid');
     grid.className = 'entry-grid ' + cols;
     grid.innerHTML = state.names.map((name, i) => `
       <div class="entry-col">
         <div class="name">${esc(name)}</div>
-        <input type="number" min="0" step="1" inputmode="numeric" placeholder="0" data-entry="${i}">
+        <input type="number" min="0" step="1" inputmode="numeric" placeholder="напр. 38" data-entry="${i}">
+        <div class="conv">= <b data-conv="${i}">0</b> в счёт</div>
         <div class="chips">
           <button type="button" data-add="${i}" data-val="20">+20</button>
           <button type="button" data-add="${i}" data-val="50">+50</button>
@@ -434,11 +476,16 @@
     $('history-head').innerHTML = '<th>№</th>' + state.names.map(nm => `<th>${esc(nm)}</th>`).join('');
     const running = state.names.map(() => 0);
     $('history-body').innerHTML = state.rounds.map((r, ri) => {
-      r.forEach((v, i) => running[i] += v);
-      const cells = r.map((v, i) => `<td>${v}<div class="running">${running.slice()[i]}</div></td>`).join('');
+      const cells = r.map((v, i) => {
+        running[i] += v;
+        const burned = burns[ri][i];
+        if (burned) running[i] -= 100;
+        return `<td>${v}<div class="running ${burned ? 'burned' : ''}">${burned ? '🔥 ' : ''}${running[i]}</div></td>`;
+      }).join('');
       return `<tr><td>${ri + 1}</td>${cells}</tr>`;
     }).join('') || '<tr><td colspan="' + (n + 1) + '" style="color:var(--ink-soft)">Пока нет записей</td></tr>';
 
+    $('burn-hint').classList.toggle('hidden', !anyBurn);
     $('undo-btn').classList.toggle('hidden', state.rounds.length === 0);
 
     // Победитель
@@ -451,17 +498,28 @@
     }
   }
 
+  function updateConv(i) {
+    const raw = parseInt(document.querySelector(`input[data-entry="${i}"]`).value, 10);
+    document.querySelector(`b[data-conv="${i}"]`).textContent = toTens(Number.isFinite(raw) && raw > 0 ? raw : 0);
+  }
+
+  $('entry-grid').addEventListener('input', (e) => {
+    const input = e.target.closest('input[data-entry]');
+    if (input) updateConv(input.dataset.entry);
+  });
+
   $('entry-grid').addEventListener('click', (e) => {
     const btn = e.target.closest('button[data-add]');
     if (!btn) return;
     const input = document.querySelector(`input[data-entry="${btn.dataset.add}"]`);
     input.value = (parseInt(input.value, 10) || 0) + parseInt(btn.dataset.val, 10);
+    updateConv(btn.dataset.add);
   });
 
   $('add-round-btn').addEventListener('click', () => {
     const values = state.names.map((_, i) => {
-      const v = parseInt(document.querySelector(`input[data-entry="${i}"]`).value, 10);
-      return Number.isFinite(v) && v > 0 ? v : 0;
+      const raw = parseInt(document.querySelector(`input[data-entry="${i}"]`).value, 10);
+      return toTens(Number.isFinite(raw) && raw > 0 ? raw : 0);
     });
     if (values.every(v => v === 0)) return;
     state.rounds.push(values);
@@ -506,6 +564,7 @@
       if (!raw) return;
       const s = JSON.parse(raw);
       if (s && Array.isArray(s.names) && Array.isArray(s.rounds) && s.target > 0) {
+        if (typeof s.burn100 !== 'boolean') s.burn100 = true;
         state = s;
         renderGame();
       }
